@@ -1,0 +1,408 @@
+<html>
+<head>
+	
+	<title>MOAB Visualizer - The GBU-43/B In Your Neighborhood</title>
+
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	
+	<link rel="shortcut icon" type="image/x-icon" href="/favicon.ico?" />
+	
+	<link rel="stylesheet" href="https://unpkg.com/leaflet@1.0.3/dist/leaflet.css" />
+	<script src="https://unpkg.com/leaflet@1.0.3/dist/leaflet.js"></script>
+	<script src="./src/leaflet-search.src.js"></script>
+	<link rel="stylesheet" href="./src/leaflet-search.src.css" />
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.0/jquery.min.js"></script>
+  
+  <link rel="stylesheet" href="https://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.css">
+	<script src="https://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"></script>
+	
+	<link rel="stylesheet" href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
+<!--  <link rel="stylesheet" href="/resources/demos/style.css"> -->
+  <script src="https://code.jquery.com/jquery-1.12.4.js"></script>
+  <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+	
+<style>
+html, body, input, select, button, textarea, table {
+    font-size: 100%;
+    font-family: 'Open Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+}
+
+.announcement {
+    background: #eee;
+    padding: 5px 10px;
+    border-radius: 10px;
+}
+.search-input {
+    font-family:'12px/1.5 "Helvetica Neue", Arial, Helvetica, sans-serif'
+}
+.search-input,
+.leaflet-control-search {
+	max-width:400px;
+}
+
+.leaflet-control-layers.leaflet-control-layers-expanded.leaflet-control {
+width:90
+}
+.div.leaflet-control-layers.leaflet-control-layers-expanded.leaflet-control {
+width:90
+}
+
+a, a span.hljs-string {
+    color: #1EB300;
+}
+
+label {
+    display: inline-block;
+    width: 5em;
+  }
+
+.ui-tooltip-content {
+   font: 12px/1.5 "Helvetica Neue", Arial, Helvetica, sans-serif, green;
+ 
+}
+html.wait, html.wait * { cursor: wait !important; }
+
+.ui-btn {z-index:1000 !important; }
+.action {z-index:1000 !important; }
+.opacity_slider {z-index:1000 !important; }
+
+		
+</style>
+
+<script> 
+// check if the page is loaded as https;	
+	if (location.protocol == 'https:') 
+		is_secure = 1;
+	else 
+		is_secure = 0;
+	https_page_url = 'https://'+ location.hostname + location.pathname
+</script>
+	
+</head>
+<body>
+<table width=600>
+<tr><td>
+<div class=announcement>The Mother of All Bombs</div>
+<br>
+In April, 2017, the USA dropped the <a href="https://en.wikipedia.org/wiki/GBU-43/B_Massive_Ordnance_Air_Blast">GBU-43/B</a> bomb in Afghanistan.<br>
+This is a truly remarkable piece of design - the largest non-nuclear weapon in the USA's arsenal.<br><br>
+
+It's difficult to fathom just how much damage it does; and how widespread its damage is.<br>
+Curious? You can see an approximation of its effect on your neighborhood.<br><hr align='center' width='100%'>
+To use:<ul>
+<li>Click on the magnifying glass; type in an address or city name</li>
+<li>Locate yourself at Ground Zero! Click on the House button (note: this takes 2-3 seconds and requires your consent)</li>
+<li>The Slider controls the opacity of the blast radius rings</li>
+</ul>
+Then, click inside one of the concentric circles to discover the fate of you, your loved ones: anyone and anything, really.<br><br>
+<div id="map" style="width: 800px; height: 600px;"></div>
+<i> (Note: this page will only find your location if you explicitly allow it.)<br>
+<div class="pageload"></div></i>
+<div id='actions' width='20' class='actions'><a href="#" id="locateMe" class="ui-btn ui-icon-home ui-btn-icon-notext" name="locateMe" title='Click here to place yourself at ground zero. Requires your explicit approval'></a></div>
+<div id="opacity_slider" class='opacity_slider' title='Control the opacity of the blast-radii rings' style="height:200px;"></div>
+</td></tr></table>
+<script>
+
+/*$(document).ready(function () {
+    $(document).ajaxStart(function () { $("html").addClass("wait"); });
+    $(document).ajaxStop(function () { $("html").removeClass("wait"); });
+});
+*/
+	if (is_secure == 0) {
+		div_text = 'To do so, reload the page by clicking on <a href="' + https_page_url + '">this link</a>';
+		$("div.pageload").html(div_text);
+		$("#locateMe").prop('title', 'When enabled, this will place your current location at Ground Zero. Click on <font color=green>the green link</font> or go to ' + https_page_url + '; and <b>allow</b> location finding'); 
+	}
+	/* global L */
+	
+	var default_opacity = 0.4;
+	
+var 	mbTokens = {}; // use different ones depending on dev/release
+mbTokens["localhost"] = 'pk.eyJ1IjoiZGhrIiwiYSI6ImNqMWlibmIyczAxM3AzMm8wN2JoaGtzd2oifQ.NGcPnG84dHsPCiwZdcV0BA';
+mbTokens["thedatazoo"] = 'pk.eyJ1IjoiZGhrIiwiYSI6ImNqMWd6YW11NzAwOWkycW9hY2RoNWh6N2EifQ.YNGhtGiWbmBWiknEry1jIQ';
+mbTokens["dhkconsulting"] = 'pk.eyJ1IjoiZGhrIiwiYSI6ImNqMWd6YW11NzAwOWkycW9hY2RoNWh6N2EifQ.YNGhtGiWbmBWiknEry1jIQ';
+
+current_domain = location.hostname;
+
+domain_key = '(Not found)';
+if (current_domain.search('localhost') != -1)
+	domain_key = 'localhost';
+else if (current_domain.search('thedatazoo') != -1)
+	domain_key = 'thedatazoo';
+else if (current_domain.search('dhkconsulting') != -1)
+	domain_key = 'dhkconsulting';
+
+	var mbAttr = '<a href="mailto:moab@dhk.io">Email Author</a> | Map data &copy; <a href="http://openstreetmap.org">OpenStreetMap</a> contributors, ' +
+			'<a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, ' +
+			'Imagery © <a href="http://mapbox.com">Mapbox</a>',
+		mbUrl = 'https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token=' + mbTokens[domain_key];
+		
+	
+	var grayscale   = L.tileLayer(mbUrl, {id: 'mapbox.light', attribution: mbAttr}),
+		streets  = L.tileLayer(mbUrl, {id: 'mapbox.streets',   attribution: mbAttr});		
+	
+	var twomiles = L.circle([37.7763, -122.4328], 3219, {
+		color: 'red',
+		fillColor: 'yellow',
+		fillOpacity: default_opacity
+	}).bindPopup("2 Miles: Congratulations. You're merely deaf.");
+	
+	var onesevenmiles = L.circle([37.7763, -122.4328], 2736, {
+		color: 'red',
+		fillColor: 'orange',
+		fillOpacity: default_opacity
+	}).bindPopup("1.7 Miles: Substantial Destruction.");
+	
+
+	var onemile = L.circle([37.7763, -122.4328], 1609, {
+		color: 'red',
+		fillColor: 'red',
+		fillOpacity: default_opacity
+	}).bindPopup("1 Mile: You and your family are buried under completely flattened buildings.");
+	
+	var oneKyards = L.circle([37.7763, -122.4328], 914, {
+		color: 'red',
+		fillColor: 'black',
+		fillOpacity: 1.0
+	}).bindPopup("1,000 Yds: Your family is ash. But then, so is your home.");
+	
+    var radii = L.layerGroup([twomiles, onesevenmiles, onemile, oneKyards]);
+    
+     radii.eachLayer(function (layer) {
+     	layer.bindTooltip('Click in the circle to see the damage.');
+     	});
+    
+    var grayscale   = L.tileLayer(mbUrl, {id: 'mapbox.light', attribution: mbAttr}),
+		streets  = L.tileLayer(mbUrl, {id: 'mapbox.streets',   attribution: mbAttr}),
+		satellite  = L.tileLayer(mbUrl, {id: 'mapbox.satellite',   attribution: mbAttr}),
+		darkscale  = L.tileLayer(mbUrl, {id: 'mapbox.dark',   attribution: mbAttr});
+
+
+	var map = L.map('map', {
+		center: [37.7763, -122.4328],
+		zoom: 13,
+		layers: [grayscale, radii]
+		}) ;	
+
+	var baseLayers = {
+		"Gray": grayscale,
+		"Streets": streets,
+		"Sat": satellite,
+		"Dark": darkscale
+	};
+
+	var overlays = {
+		"radii": radii
+	};
+
+	// L.control.layers(baseLayers, overlays, {collapsed: false}) .addTo(map);
+	var markerLayer = L.featureGroup()
+		.addTo(map)
+		.on("click", markerGroupClick);
+	
+		var paintedLadies=L.marker([37.7763, -122.4328]).addTo(markerLayer)
+			.addTo(map)
+			.bindPopup("<b>Ground Zero</b><br />Painted Ladies").openPopup();
+		
+
+    var searchLayer = L.layerGroup()
+    	.addTo(map);
+    	
+    //... adding data in searchLayer ...
+	map.addControl( new L.Control.Search({
+		url: 'https://nominatim.openstreetmap.org/search?format=json&q={s}',
+		jsonpParam: 'json_callback',
+		propertyName: 'display_name',
+		propertyLoc: ['lat','lon'],
+		//marker: L.circleMarker([0,0],{radius:30}),
+		marker: L.circleMarker([0,0], {radius:1}),
+		autoCollapse: true,
+		autoType: false,
+		minLength: 2,
+		moveToLocation: searchMoveTo
+	}) );
+
+L.Control.Custom = L.Control.Layers.extend({
+  onAdd: function () {
+		this._initLayout();
+		this._addButton();
+		this._update();
+		return this._container;
+	},
+	_addButton: function () {
+	  var elements = this._container.getElementsByClassName('leaflet-control-layers-list');
+	  var button = L.DomUtil.create('button', 'my-button-class', elements[0]);
+	  button.textContent = 'Close control';
+	  L.DomEvent.on(button, 'click', function(e){
+	    L.DomEvent.stop(e);
+	    this._collapse();
+	  }, this);
+	}
+});
+
+var control = new L.Control.Custom(baseLayers, overlays, {collapsed:false}).addTo(map);
+	
+	function markerGroupClick(e) {
+		setRadii(e.latlng);
+		map.panTo(e.latlng);
+	}
+
+    function searchMoveTo(thisLatLng, title, map){
+       //console.log('searchMoveTo', thisLatLng, title, map)
+        setRadii(thisLatLng);
+        map.panTo(thisLatLng);
+        new L.marker(thisLatLng)
+        	.bindPopup("<b>Found Address</b><br>" + title)
+        	.addTo(markerLayer)
+        	.openPopup();   
+    }
+
+    function locateUser() {
+        console.log("found");
+        this.map.locate({setView : true});
+        
+    };
+
+    function onLocationFound(e){
+		 accuracy = e.accuracy/2;
+		 console.log( 'onlocationfound', e.accuracy);
+		 if (accuracy <= 750) {
+			 new L.circleMarker(e.latlng).setRadius(accuracy).addToMap;
+			 }
+			new L.marker(e.latlng)
+				.addTo(markerLayer)
+				.bindPopup("<b>Your Location</b><br>+/- " + e.accuracy/2 + " meters")
+				.openPopup();
+				
+			setRadii(e.latlng);
+		 $('#map').css({'cursor':'default'})
+		  console.log("done");
+		}
+    
+    $('#actions').find('a').on('click', function(){
+    console.log('actions_click');
+		 $('#map').css({'cursor':'wait'})
+    onFindClick();
+    });
+
+	var popup = L.popup();
+	
+	function onFindClick() {
+	console.log('wait...');
+    	$('actions').css({'cursor' : 'wait'});
+       locateUser();
+
+	};
+
+	function onMapClick(e) {
+		popup
+			.setLatLng(e.latlng)
+			.setContent("You clicked the map at " + e.latlng.toString())
+			.openOn(map);
+	}
+	
+	function setRadii(thisLatLng) {
+	    radii.eachLayer(function (layer) {
+         layer.setLatLng(thisLatLng);
+	    })
+	    this.map.setZoom(13);
+	}
+	
+	function onMoveEnd(e) {
+	    //console.log('move done', e, map.getCenter());
+	    //radii.eachLayer(function (layer) {
+         //layer.setLatLng(map.getCenter());
+         map.setZoom(13);
+       //});
+	}
+
+	//map.on('click', function(e) { onMapClick(e)});
+	
+	//map.on('moveend', onMoveEnd);
+	map.on('locationfound', function(e) { 
+		console.log('click on location found');
+		onLocationFound(e);
+		});
+
+map.on('locationerror', onLocationError);
+function onLocationError(e) {
+    alert(e.message);
+}
+
+function closeControlLayer(e) {
+	console.log('closeControlLayer');
+}
+
+function updateLayerOpacity(opacity){
+ radii.eachLayer(function (layer) {
+	layer.setStyle({fillOpacity: opacity});
+
+		})};
+		
+//map.on('baselayerchange', closeControlLayer);
+//map.on('overlayadd', closeControlLayer);
+//map.on('overlayremove',  closeControlLayer);
+
+
+$(document).ready(function() {
+	$("#actions").position({
+			my:        "left top",
+			at:        "left+10 top+120",
+			of:        "#map", // or $("#otherdiv")
+			collision: "fit"
+	})
+
+	$("#opacity_slider").position({
+			my:        "left top",
+			at:        "left+8 top+40",
+			of:        "#actions", // or $("#otherdiv")
+			collision: "fit"
+	});
+	
+	//$('#div.leaflet-control-layers.leaflet-control').prop('title', 'Change base map; hide/show the blast radii');
+});
+</script>
+<script>
+$( function() {
+    $( "#opacity_slider" ).slider({
+      orientation: "vertical",
+      range: "min",
+      min: 0,
+      max: 1,
+      value: default_opacity,
+      step: 0.1,
+      slide: function( event, ui ) {
+      	updateLayerOpacity(ui.value);
+        //$( "#amount" ).val( ui.value );
+      }
+    });
+  } );
+$( function() {
+    $( document ).tooltip({
+    position: { my: "left+15 center", at: "right center" },
+    content: function () {
+    	return $(this).prop('title');
+      }
+    });
+  } );
+ 
+</script>
+
+<div id="slider-opacity_slider" style="height:200px;"></div>
+Comments or feedback? <a href="mailto:moab@dhk.io">Email the Author - Dave Holmes-Kinsella</a>
+<hr>
+Credits:
+<ul>
+<li><a href="http://agafonkin.com/en/">Leaflet Layer Code (Vladimir Agafonkin)</a></li>
+<li><a href="http://labs.easyblog.it/maps/leaflet-search/">Search Box (Stefano Cudini)</a></li>
+    
+</ul>
+
+
+</body>
+</html>
+
